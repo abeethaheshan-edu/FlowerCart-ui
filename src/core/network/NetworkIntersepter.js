@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { API_ERROR_TYPES } from '../constants/apiErrorTypes';
 import { StorageService } from '../storage/StorageService';
-import { API_PATH } from './ApiEndpoints';
+import { API_PATH } from '../network/utils/ApiEndpoints';
 
 const INTERCEPTOR_HANDLED_TYPES = new Set([
   API_ERROR_TYPES.INVALID_TOKEN,
@@ -26,7 +26,7 @@ async function refreshAccessToken() {
   const refreshToken = StorageService.getRefresh();
   if (!refreshToken) throw new Error('No refresh token available');
 
-  const { data } = await axios.post(API_PATH.auth.refresh, { refreshToken });
+  const { data } = await api.post(API_PATH.auth.refresh, { refreshToken });
 
   StorageService.setAccessToken(data.accessToken);
   StorageService.setRefreshToken(data.refreshToken);
