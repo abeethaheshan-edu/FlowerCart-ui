@@ -2,7 +2,8 @@ import React from 'react'
 
 function Router() {
   return (
-    <div>Router test </div>
+    //just gonna leave this here ✌️
+    <div>Router</div>
   )
 }
 
