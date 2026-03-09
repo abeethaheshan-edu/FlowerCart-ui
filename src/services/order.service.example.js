@@ -15,7 +15,7 @@ function getOrders(status, { page, limit } = {}) {
   const req = apiClient.get();
   req.url = resolvePath(API_PATH.orders.adminList, status);
   req.query = { page, limit };
-
+ 
   return req.then((res) => res.data.map((o) => new Order(o))).catch((err) => Promise.reject(err));
 }
 
