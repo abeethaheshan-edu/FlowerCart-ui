@@ -3,7 +3,10 @@ import { ThemeContextProvider } from './core/context/ThemeModeContext';
 import './App.css';
 
 function App() {
-  return <ThemeContextProvider></ThemeContextProvider>;
+  return (
+    <ThemeContextProvider>
+    </ThemeContextProvider>
+  );
 }
 
 export default App;
