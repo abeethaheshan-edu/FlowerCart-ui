@@ -14,7 +14,7 @@ export function appTheme(mode = 'light') {
       h1: {
         fontFamily: commonTokens.typography.headingFontFamily,
         fontWeight: 800,
-        fontSize: '3rem',
+        fontSize: '2.5rem',
         lineHeight: 1.1,
       },
       h2: {
@@ -92,9 +92,52 @@ export function appTheme(mode = 'light') {
             borderRadius: 16,
             backgroundImage: 'none',
             boxShadow:
-              mode === 'dark'
-                ? '0 8px 24px rgba(0,0,0,0.25)'
-                : commonTokens.customShadows.card,
+              mode === 'dark' ? '0 8px 24px rgba(0,0,0,0.25)' : commonTokens.customShadows.card,
+          },
+        },
+      },
+
+      MuiButton: {
+        defaultProps: {
+          disableElevation: true,
+        },
+        styleOverrides: {
+          root: {
+            minHeight: 48,
+            borderRadius: 16,
+            paddingLeft: 20,
+            paddingRight: 20,
+            fontSize: '1rem',
+            fontWeight: 600,
+            textTransform: 'none',
+            boxShadow: 'none',
+            whiteSpace: 'nowrap',
+            '&:hover': {
+              boxShadow: 'none',
+            },
+          },
+          containedPrimary: {
+            color: '#FFFFFF',
+          },
+          outlinedPrimary: {
+            borderWidth: '1px',
+            '&:hover': {
+              borderWidth: '1px',
+            },
+          },
+          sizeSmall: {
+            minHeight: 40,
+            borderRadius: 14,
+            paddingLeft: 16,
+            paddingRight: 16,
+            fontSize: '0.95rem',
+          },
+          sizeLarge: {
+            minHeight: 54,
+            borderRadius: 18,
+            paddingLeft: 24,
+            paddingRight: 24,
+            fontSize: '1rem',
           },
         },
       },
@@ -105,9 +148,7 @@ export function appTheme(mode = 'light') {
             borderRadius: 16,
             border: `1px solid ${palette.divider}`,
             boxShadow:
-              mode === 'dark'
-                ? '0 8px 24px rgba(0,0,0,0.22)'
-                : commonTokens.customShadows.soft,
+              mode === 'dark' ? '0 8px 24px rgba(0,0,0,0.22)' : commonTokens.customShadows.soft,
           },
         },
       },
@@ -137,8 +178,7 @@ export function appTheme(mode = 'light') {
         styleOverrides: {
           root: {
             borderRadius: 12,
-            backgroundColor:
-              mode === 'dark' ? 'rgba(255,255,255,0.02)' : '#FFFFFF',
+            backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.02)' : '#FFFFFF',
             '& .MuiOutlinedInput-notchedOutline': {
               borderColor: palette.divider,
             },
