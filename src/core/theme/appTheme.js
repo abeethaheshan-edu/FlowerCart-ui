@@ -1,7 +1,7 @@
 import { createTheme } from '@mui/material/styles';
 import { commonTokens, lightPalette, darkPalette } from './appColors';
 
-export function createAppTheme(mode = 'light') {
+export function appTheme(mode = 'light') {
   const palette = mode === 'dark' ? darkPalette : lightPalette;
 
   return createTheme({
