@@ -1,13 +1,13 @@
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Box from "@mui/material/Box";
+import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
+import Box from '@mui/material/Box';
 
 export default function AppButton({
   children,
-  type = "button",
-  variant = "contained",
-  color = "primary",
-  size = "medium",
+  type = 'button',
+  variant = 'contained',
+  color = 'primary',
+  size = 'medium',
   fullWidth = false,
   loading = false,
   disabled = false,
@@ -29,27 +29,12 @@ export default function AppButton({
       startIcon={!loading ? startIcon : null}
       endIcon={!loading ? endIcon : null}
       sx={{
-        minHeight: fullWidth ? 52 : 48,
-        px: fullWidth ? 3 : 3,
-        borderRadius: "16px",
-        fontSize: "1rem",
-        fontWeight: 600,
-        textTransform: "none",
-        boxShadow: "none",
-        whiteSpace: "nowrap",
-        "&:hover": {
-          boxShadow: "none",
-        },
-
-        ...(variant === "contained" && {
-          color: "#fff",
+        ...(variant === 'contained' && {
+          color: '#fff',
         }),
-
-        ...(variant === "outlined" && {
-          borderWidth: "1px",
-          backgroundColor: "transparent",
+        ...(variant === 'outlined' && {
+          backgroundColor: 'transparent',
         }),
-
         ...sx,
       }}
       {...props}
@@ -57,12 +42,12 @@ export default function AppButton({
       {loading ? (
         <Box
           sx={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 1.2,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 1,
           }}
         >
-          <CircularProgress size={18} color="inherit" />
+          <CircularProgress size={16} color="inherit" />
           <span>{children}</span>
         </Box>
       ) : (
