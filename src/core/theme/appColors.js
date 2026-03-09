@@ -1,6 +1,6 @@
 export const commonTokens = {
   shape: {
-    borderRadius: 16,
+    borderRadius: 12,
   },
   typography: {
     fontFamily: `'Inter', 'Roboto', 'Arial', sans-serif`,

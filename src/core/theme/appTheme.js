@@ -7,7 +7,7 @@ export function appTheme(mode = 'light') {
   return createTheme({
     palette,
     shape: {
-      borderRadius: commonTokens.shape.borderRadius,
+      borderRadius: 12,
     },
     typography: {
       fontFamily: commonTokens.typography.fontFamily,
@@ -48,6 +48,8 @@ export function appTheme(mode = 'light') {
       button: {
         textTransform: 'none',
         fontWeight: 600,
+        fontSize: '0.8rem',
+        lineHeight: 1.2,
       },
     },
     spacing: 8,
@@ -118,17 +120,54 @@ export function appTheme(mode = 'light') {
         },
         styleOverrides: {
           root: {
-            minHeight: 44,
-            borderRadius: 12,
-            paddingInline: 18,
+            minHeight: 38,
+            borderRadius: 10,
+            paddingLeft: 16,
+            paddingRight: 16,
+            fontSize: '0.92rem',
+            fontWeight: 600,
+            textTransform: 'none',
+            boxShadow: 'none',
+            whiteSpace: 'nowrap',
+            '&:hover': {
+              boxShadow: 'none',
+            },
           },
           containedPrimary: {
+            color: '#FFFFFF',
             '&:hover': {
-              opacity: 0.95,
+              opacity: 0.96,
             },
           },
           outlined: {
             borderColor: palette.divider,
+          },
+          outlinedPrimary: {
+            borderWidth: '1px',
+            '&:hover': {
+              borderWidth: '1px',
+            },
+          },
+          sizeSmall: {
+            minHeight: 32,
+            borderRadius: 9,
+            paddingLeft: 12,
+            paddingRight: 12,
+            fontSize: '0.7rem',
+          },
+          sizeMedium: {
+            minHeight: 38,
+            borderRadius: 10,
+            paddingLeft: 16,
+            paddingRight: 16,
+            fontSize: '0.8rem',
+          },
+          sizeLarge: {
+            minHeight: 44,
+            borderRadius: 12,
+            paddingLeft: 20,
+            paddingRight: 20,
+            fontSize: '0.96rem',
           },
         },
       },
