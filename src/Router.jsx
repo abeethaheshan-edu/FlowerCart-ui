@@ -29,6 +29,9 @@ import AdminInventoryScreen from './features/inventroy/screens/AdminInventoryScr
 import AdminSupportScreen from './features/supports/screens/AdminSupportScreen';
 import AdminSettingsScreen from './features/settings/screens/AdminSettingsScreen';
 
+import ComponentLibrary from './features/library/ComponentLibrary';
+
+
 const router = createBrowserRouter([
   {
     path: '/',
@@ -78,6 +81,7 @@ const router = createBrowserRouter([
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },
+  { path: 'library', element: <ComponentLibrary /> },
 ]);
 
 export default function Router() {
