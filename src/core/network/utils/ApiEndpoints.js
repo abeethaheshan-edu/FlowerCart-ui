@@ -1,17 +1,24 @@
 export const API_PATH = {
   auth: {
-    login: '',
-    refresh: '',
-    me: '',
-    logout: '',
+    login: '/auth/login',
+    register: '/auth/register',
+    refresh: '/auth/refresh',
+    me: '/auth/me',
+    logout: '/auth/logout',
+    forgotPassword: '/auth/forgot-password',
+    resetPassword: '/auth/reset-password',
   },
   products: {
-    list: '',
-    detail: '',
+    list: '/products',
+    detail: '/products/{param1}',
   },
-  orders: { 
+  orders: {
     my: '/orders/my',
-    adminList: '/admin/orders/{param1}',
-
+    detail: '/orders/{param1}',
+    adminList: '/admin/orders',
+    adminDetail: '/admin/orders/{param1}',
+    adminOrderItem: '/admin/orders/{param1}/items/{param2}',
+    attachments: '/orders/{param1}/attachments',
+    itemPhotos: '/orders/{param1}/items/{param2}/photos',
   },
 };
