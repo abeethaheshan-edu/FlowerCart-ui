@@ -1,19 +1,21 @@
+// Matches backend AuthDTO response
 export class UserModel {
   constructor(data = {}) {
-    this.id = data.id ?? null;
-    this.firstName = data.firstName ?? '';
-    this.lastName = data.lastName ?? '';
+    this.userId = data.userId ?? null;
     this.email = data.email ?? '';
-    this.role = data.role ?? 'customer';
-    this.avatar = data.avatar ?? null;
-  }
-
-  get fullName() {
-    return `${this.firstName} ${this.lastName}`.trim();
+    this.fullName = data.fullName ?? '';
+    this.phone = data.phone ?? null;
+    this.status = data.status ?? 'ACTIVE';
+    this.roles = data.roles ?? [];
+    this.createdAt = data.createdAt ?? null;
   }
 
   get isAdmin() {
-    return this.role === 'admin';
+    return this.roles.includes('ROLE_ADMIN');
+  }
+
+  get displayName() {
+    return this.fullName || this.email;
   }
 }
 
@@ -21,23 +23,25 @@ export class LoginRequestModel {
   constructor(data = {}) {
     this.email = data.email ?? '';
     this.password = data.password ?? '';
-    this.rememberMe = data.rememberMe ?? false;
   }
 }
 
 export class RegisterRequestModel {
   constructor(data = {}) {
-    this.firstName = data.firstName ?? '';
-    this.lastName = data.lastName ?? '';
     this.email = data.email ?? '';
     this.password = data.password ?? '';
+    this.fullName = data.fullName ?? '';
+    this.phone = data.phone ?? '';
   }
 }
 
+// Backend returns tokens in response headers (X-Access-Token, X-Refresh-Token)
+// and user data in body
 export class AuthResponseModel {
-  constructor(data = {}) {
-    this.accessToken = data.accessToken ?? '';
-    this.refreshToken = data.refreshToken ?? '';
-    this.user = new UserModel(data.user ?? {});
+  constructor(data = {}, headers = {}) {
+    // Tokens come from response body OR headers
+    this.accessToken = data.accessToken ?? headers?.['x-access-token'] ?? '';
+    this.refreshToken = data.refreshToken ?? headers?.['x-refresh-token'] ?? '';
+    this.user = new UserModel(data);
   }
 }

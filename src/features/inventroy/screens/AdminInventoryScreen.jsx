@@ -1,190 +1,118 @@
-import { useMemo, useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-
+import Skeleton from '@mui/material/Skeleton';
+import Alert from '@mui/material/Alert';
 import AppBreadcrumbs from '../../../components/common/AppBreadcrumbs';
 import AppButton from '../../../components/common/AppButton';
-import AppCard, { StatCard } from '../../../components/common/AppCard';
+import { StatCard } from '../../../components/common/AppCard';
 import AppChip from '../../../components/common/AppChip';
 import AppModal from '../../../components/common/AppModal';
 import AppPagination from '../../../components/common/AppPagination';
-import AppSelect from '../../../components/common/AppSelect';
 import AppTable from '../../../components/common/AppTable';
 import AppTextField from '../../../components/common/AppTextField';
 import PageHeader from '../../../components/common/PageHeader';
+import { inventoryService } from '../services/inventoryService';
+import { productService } from '../../products/services/productService';
 
-const initialItems = [
-  {
-    id: 'INV-001',
-    product: 'Wireless Bluetooth Headphones',
-    sku: 'WBH-001',
-    category: 'Electronics',
-    currentStock: 247,
-    minThreshold: 50,
-    unitPrice: '$89.99',
-    status: 'active',
-  },
-  {
-    id: 'INV-002',
-    product: 'Smart Fitness Tracker',
-    sku: 'SFT-102',
-    category: 'Wearables',
-    currentStock: 23,
-    minThreshold: 30,
-    unitPrice: '$129.99',
-    status: 'low',
-  },
-  {
-    id: 'INV-003',
-    product: 'Organic Cotton T-Shirt',
-    sku: 'OCT-205',
-    category: 'Clothing',
-    currentStock: 0,
-    minThreshold: 25,
-    unitPrice: '$24.99',
-    status: 'critical',
-  },
-  {
-    id: 'INV-004',
-    product: 'Indoor Succulent Set',
-    sku: 'ISS-013',
-    category: 'Plants',
-    currentStock: 88,
-    minThreshold: 20,
-    unitPrice: '$54.90',
-    status: 'active',
-  },
-  {
-    id: 'INV-005',
-    product: 'Ceramic Planter Pot',
-    sku: 'CPP-045',
-    category: 'Home',
-    currentStock: 42,
-    minThreshold: 15,
-    unitPrice: '$19.90',
-    status: 'active',
-  },
-];
-
-const statusOptions = [
-  { value: 'all', label: 'All Stock Status' },
-  { value: 'active', label: 'In Stock' },
-  { value: 'low', label: 'Low Stock' },
-  { value: 'critical', label: 'Out of Stock' },
-];
+const PAGE_SIZE = 20;
 
 export default function AdminInventoryScreen() {
-  const [items, setItems] = useState(initialItems);
+  const [items, setItems] = useState([]);
+  const [allProducts, setAllProducts] = useState([]);
   const [page, setPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [query, setQuery] = useState('');
-  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
-  const [newItem, setNewItem] = useState({
-    product: '',
-    sku: '',
-    category: '',
-    currentStock: 0,
-    minThreshold: 0,
-    unitPrice: '',
-    status: 'active',
-  });
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [editModal, setEditModal] = useState(null); // { productId, productName, stockQty, reorderLevel }
+  const [saving, setSaving] = useState(false);
+  const [editFields, setEditFields] = useState({ stockQty: 0, reorderLevel: 5 });
 
-  const stats = useMemo(() => {
-    const totalProducts = items.length;
-    const lowStock = items.filter((i) => i.currentStock > 0 && i.currentStock <= i.minThreshold).length;
-    const outOfStock = items.filter((i) => i.currentStock === 0).length;
-    const totalValue = items.reduce((sum, i) => sum + Number(i.unitPrice.replace('$', '')) * i.currentStock, 0);
-    const newArrivals = items.filter((i) => i.id.endsWith('4') || i.id.endsWith('5')).length;
-    return { totalProducts, lowStock, outOfStock, totalValue, newArrivals };
-  }, [items]);
+  const loadLowStock = useCallback(() => {
+    setLoading(true);
+    inventoryService.getLowStock({ page: page - 1, size: PAGE_SIZE })
+      .then((paged) => {
+        setItems(paged.data ?? []);
+        setTotalPages(paged.totalPages || 1);
+        setTotalElements(paged.totalElements || 0);
+      })
+      .catch(() => setError('Failed to load inventory.'))
+      .finally(() => setLoading(false));
+  }, [page]);
 
-  const filteredItems = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    return items.filter((item) => {
-      const statusMatches = statusFilter === 'all' || item.status === statusFilter;
-      const searchMatches =
-        !term ||
-        item.product.toLowerCase().includes(term) ||
-        item.sku.toLowerCase().includes(term) ||
-        item.category.toLowerCase().includes(term);
-      return statusMatches && searchMatches;
-    });
-  }, [items, query, statusFilter]);
+  useEffect(() => { loadLowStock(); }, [loadLowStock]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / rowsPerPage));
-  const pagedItems = useMemo(() => {
-    const start = (page - 1) * rowsPerPage;
-    return filteredItems.slice(start, start + rowsPerPage);
-  }, [filteredItems, page, rowsPerPage]);
+  // Also load all products for the stats
+  useEffect(() => {
+    productService.getAdminProducts({ page: 0, size: 1 })
+      .then((paged) => setAllProducts(paged))
+      .catch(() => {});
+  }, []);
+
+  const openEdit = (item) => {
+    setEditFields({ stockQty: item.stockQty, reorderLevel: item.reorderLevel });
+    setEditModal(item);
+  };
+
+  const handleSave = async () => {
+    if (!editModal) return;
+    setSaving(true);
+    try {
+      await inventoryService.updateInventory(editModal.productId, editFields);
+      setEditModal(null);
+      loadLowStock();
+    } catch (err) {
+      setError(err.message || 'Failed to update inventory.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const outOfStockCount = items.filter((i) => i.stockQty === 0).length;
+  const lowStockCount = items.filter((i) => i.stockQty > 0 && i.lowStock).length;
 
   const columns = [
     {
-      key: 'product',
+      key: 'productName',
       label: 'Product',
-      render: (_, row) => (
+      render: (value, row) => (
         <Box>
-          <Typography variant="body2" fontWeight={700}>
-            {row.product}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {row.sku} • {row.category}
-          </Typography>
+          <Typography variant="body2" fontWeight={700}>{value}</Typography>
+          <Typography variant="caption" color="text.secondary">ID: {row.productId}</Typography>
         </Box>
       ),
     },
-    { key: 'currentStock', label: 'Current Stock', align: 'center' },
-    { key: 'minThreshold', label: 'Min Threshold', align: 'center' },
-    { key: 'unitPrice', label: 'Unit Price', align: 'right' },
+    { key: 'stockQty', label: 'Current Stock', align: 'center' },
+    { key: 'reorderLevel', label: 'Reorder Level', align: 'center' },
     {
-      key: 'status',
+      key: 'lowStock',
       label: 'Status',
       align: 'center',
-      render: (value) => <AppChip status={value} />,
+      render: (_, row) => (
+        <AppChip
+          status={row.stockQty === 0 ? 'critical' : row.lowStock ? 'low' : 'active'}
+          label={row.stockQty === 0 ? 'Out of Stock' : row.lowStock ? 'Low Stock' : 'OK'}
+        />
+      ),
+    },
+    {
+      key: 'updatedAt',
+      label: 'Last Updated',
+      render: (v) => v ? new Date(v).toLocaleDateString() : '—',
     },
     {
       key: 'actions',
       label: 'Actions',
       align: 'right',
       render: (_, row) => (
-        <Stack direction="row" spacing={1} justifyContent="flex-end">
-          <AppButton size="small" variant="outlined" onClick={() => window.alert(`Edit ${row.product}`)}>
-            Edit
-          </AppButton>
-          <AppButton
-            size="small"
-            color="error"
-            variant="outlined"
-            onClick={() => setItems((prev) => prev.filter((item) => item.id !== row.id))}
-          >
-            Delete
-          </AppButton>
-        </Stack>
+        <AppButton size="small" variant="outlined" onClick={() => openEdit(row)}>
+          Update Stock
+        </AppButton>
       ),
     },
   ];
-
-  const handleCreate = () => {
-    if (!newItem.product || !newItem.sku || !newItem.unitPrice) return;
-    setItems((prev) => [
-      {
-        id: `INV-${String(prev.length + 1).padStart(3, '0')}`,
-        ...newItem,
-      },
-      ...prev,
-    ]);
-    setIsNewModalOpen(false);
-    setNewItem({
-      product: '',
-      sku: '',
-      category: '',
-      currentStock: 0,
-      minThreshold: 0,
-      unitPrice: '',
-      status: 'active',
-    });
-  };
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -192,118 +120,64 @@ export default function AdminInventoryScreen() {
 
       <PageHeader
         title="Inventory Management"
-        subtitle="Monitor and manage product stock levels"
+        subtitle="Monitor low-stock and out-of-stock items"
         action={
-          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-            <AppButton variant="outlined" onClick={() => window.alert('Export clicked')}>
-              Export
-            </AppButton>
-            <AppButton onClick={() => setIsNewModalOpen(true)}>Add Product</AppButton>
-          </Stack>
+          <AppButton variant="outlined" onClick={loadLowStock}>Refresh</AppButton>
         }
       />
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(5, 1fr)' }, gap: 1.5, mb: 2 }}>
-        <StatCard label="Total Products" value={stats.totalProducts} />
-        <StatCard label="Low Stock" value={stats.lowStock} trend={`${stats.lowStock} need attention`} trendPositive={false} />
-        <StatCard label="Out of Stock" value={stats.outOfStock} trend={`${stats.outOfStock} urgent`} trendPositive={false} />
-        <StatCard label="Total Value" value={`$${stats.totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} trend="+12% inventory worth" />
-        <StatCard label="New Arrivals" value={stats.newArrivals} trend="since last week" />
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+
+      {/* Stats */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.5, mb: 3 }}>
+        <StatCard label="Low Stock Items" value={loading ? '—' : totalElements} trend="Needs attention" trendPositive={false} />
+        <StatCard label="Out of Stock" value={loading ? '—' : outOfStockCount} trend="Urgent" trendPositive={false} />
+        <StatCard label="Low but Available" value={loading ? '—' : lowStockCount} trend="Order soon" trendPositive={false} />
+        <StatCard label="Total Products" value={allProducts?.totalElements ?? '—'} trendPositive />
       </Box>
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} mb={2}>
-        <AppTextField
-          label="Search products"
-          placeholder="Search by name, SKU, category"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setPage(1);
-          }}
-        />
-        <AppSelect
-          label="Stock status"
-          value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value);
-            setPage(1);
-          }}
-          options={statusOptions}
-          sx={{ width: { xs: '100%', sm: 220 } }}
-        />
-      </Stack>
-
-      <AppTable columns={columns} rows={pagedItems} emptyMessage="No products found" />
+      {loading ? (
+        <Stack spacing={1}>{[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} height={52} />)}</Stack>
+      ) : (
+        <AppTable columns={columns} rows={items} emptyMessage="No low-stock items — all products well-stocked! 🎉" />
+      )}
 
       <AppPagination
         page={page}
         count={totalPages}
-        total={filteredItems.length}
-        rowsPerPage={rowsPerPage}
+        total={totalElements}
+        rowsPerPage={PAGE_SIZE}
         onPageChange={(val) => setPage(val)}
-        onRowsPerPageChange={(val) => {
-          setRowsPerPage(val);
-          setPage(1);
-        }}
       />
 
+      {/* Edit Modal */}
       <AppModal
-        open={isNewModalOpen}
-        onClose={() => setIsNewModalOpen(false)}
-        title="Add Inventory Item"
+        open={!!editModal}
+        onClose={() => setEditModal(null)}
+        title={`Update Stock — ${editModal?.productName}`}
         actions={
           <Stack direction="row" spacing={1} sx={{ width: '100%', justifyContent: 'flex-end' }}>
-            <AppButton variant="outlined" onClick={() => setIsNewModalOpen(false)}>
-              Cancel
-            </AppButton>
-            <AppButton onClick={handleCreate}>Create</AppButton>
+            <AppButton variant="outlined" onClick={() => setEditModal(null)}>Cancel</AppButton>
+            <AppButton loading={saving} onClick={handleSave}>Save Changes</AppButton>
           </Stack>
         }
       >
         <Stack spacing={2}>
           <AppTextField
-            label="Product"
-            value={newItem.product}
-            onChange={(e) => setNewItem((prev) => ({ ...prev, product: e.target.value }))}
-          />
-          <AppTextField
-            label="SKU"
-            value={newItem.sku}
-            onChange={(e) => setNewItem((prev) => ({ ...prev, sku: e.target.value }))}
-          />
-          <AppTextField
-            label="Category"
-            value={newItem.category}
-            onChange={(e) => setNewItem((prev) => ({ ...prev, category: e.target.value }))}
-          />
-          <AppTextField
-            label="Current Stock"
+            label="Current Stock Quantity"
             type="number"
-            value={newItem.currentStock}
-            onChange={(e) => setNewItem((prev) => ({ ...prev, currentStock: Number(e.target.value) }))}
+            value={editFields.stockQty}
+            onChange={(e) => setEditFields((p) => ({ ...p, stockQty: Math.max(0, parseInt(e.target.value) || 0) }))}
           />
           <AppTextField
-            label="Min Threshold"
+            label="Reorder Level"
             type="number"
-            value={newItem.minThreshold}
-            onChange={(e) => setNewItem((prev) => ({ ...prev, minThreshold: Number(e.target.value) }))}
+            value={editFields.reorderLevel}
+            onChange={(e) => setEditFields((p) => ({ ...p, reorderLevel: Math.max(0, parseInt(e.target.value) || 0) }))}
           />
-          <AppTextField
-            label="Unit Price"
-            placeholder="$0.00"
-            value={newItem.unitPrice}
-            onChange={(e) => setNewItem((prev) => ({ ...prev, unitPrice: e.target.value }))}
-          />
-          <AppSelect
-            label="Status"
-            value={newItem.status}
-            onChange={(e) => setNewItem((prev) => ({ ...prev, status: e.target.value }))}
-            options={[
-              { value: 'active', label: 'In Stock' },
-              { value: 'low', label: 'Low Stock' },
-              { value: 'critical', label: 'Out of Stock' },
-            ]}
-          />
+          <Typography variant="caption" color="text.secondary">
+            The system will flag this product as low-stock when quantity falls at or below the reorder level.
+          </Typography>
         </Stack>
       </AppModal>
     </Box>

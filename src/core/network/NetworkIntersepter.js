@@ -9,7 +9,7 @@ const INTERCEPTOR_HANDLED_TYPES = new Set([
 ]);
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
+  baseURL: "http://localhost:8080/api/v1",
   timeout: 10_000,
   headers: { 'Content-Type': 'application/json' },
 });

@@ -1,212 +1,122 @@
-import { useMemo, useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-
+import Skeleton from '@mui/material/Skeleton';
+import Alert from '@mui/material/Alert';
+import Divider from '@mui/material/Divider';
+import Avatar from '@mui/material/Avatar';
 import AppBreadcrumbs from '../../../components/common/AppBreadcrumbs';
 import AppButton from '../../../components/common/AppButton';
-import AppCard, { StatCard } from '../../../components/common/AppCard';
 import AppChip from '../../../components/common/AppChip';
 import AppModal from '../../../components/common/AppModal';
 import AppPagination from '../../../components/common/AppPagination';
 import AppSelect from '../../../components/common/AppSelect';
 import AppTable from '../../../components/common/AppTable';
-import AppTextField from '../../../components/common/AppTextField';
 import PageHeader from '../../../components/common/PageHeader';
+import { supportService } from '../services/supportService';
 
-const initialTickets = [
-  {
-    id: 'TCK-2026-001',
-    subject: 'Payment gateway issue - checkout failing',
-    customer: 'John Doe',
-    email: 'john.doe@example.com',
-    status: 'Open',
-    priority: 'Critical',
-    assignedTo: 'Sarah Wilson',
-    createdAt: 'Mar 30, 2026 09:30 AM',
-    updatedAt: 'Mar 30, 2026 09:45 AM',
-  },
-  {
-    id: 'TCK-2026-002',
-    subject: 'Order not delivered after 10 days',
-    customer: 'Sarah Smith',
-    email: 'sarah.smith@example.com',
-    status: 'In Progress',
-    priority: 'High',
-    assignedTo: 'Arah Wilson',
-    createdAt: 'Mar 29, 2026 03:10 PM',
-    updatedAt: 'Mar 29, 2026 05:26 PM',
-  },
-  {
-    id: 'TCK-2026-003',
-    subject: 'Change shipping address - existing order',
-    customer: 'Mike Jones',
-    email: 'mike.jones@example.com',
-    status: 'Pending',
-    priority: 'Medium',
-    assignedTo: 'Emma Davis',
-    createdAt: 'Mar 28, 2026 02:03 PM',
-    updatedAt: 'Mar 28, 2026 02:40 PM',
-  },
-  {
-    id: 'TCK-2026-004',
-    subject: 'Product recommendation for home office',
-    customer: 'Anna Wilson',
-    email: 'anna.wilson@example.com',
-    status: 'Resolved',
-    priority: 'Low',
-    assignedTo: 'Michael Brown',
-    createdAt: 'Mar 27, 2026 10:50 AM',
-    updatedAt: 'Mar 27, 2026 11:25 AM',
-  },
+const STATUS_OPTIONS = [
+  { value: '', label: 'All Status' },
+  { value: 'OPEN', label: 'Open' },
+  { value: 'IN_PROGRESS', label: 'In Progress' },
+  { value: 'RESOLVED', label: 'Resolved' },
+  { value: 'CLOSED', label: 'Closed' },
 ];
 
-const statusOptions = [
-  { value: 'all', label: 'All tickets' },
-  { value: 'Open', label: 'Open' },
-  { value: 'In Progress', label: 'In Progress' },
-  { value: 'Pending', label: 'Pending' },
-  { value: 'Resolved', label: 'Resolved' },
-];
-
-const priorityOptions = [
-  { value: 'all', label: 'All priorities' },
-  { value: 'Critical', label: 'Critical' },
-  { value: 'High', label: 'High' },
-  { value: 'Medium', label: 'Medium' },
-  { value: 'Low', label: 'Low' },
-];
-
-const agentOptions = [
-  { value: 'all', label: 'All agents' },
-  { value: 'Sarah Wilson', label: 'Sarah Wilson' },
-  { value: 'Arah Wilson', label: 'Arah Wilson' },
-  { value: 'Emma Davis', label: 'Emma Davis' },
-  { value: 'Michael Brown', label: 'Michael Brown' },
-];
-
-const priorityColor = { Critical: 'error', High: 'warning', Medium: 'secondary', Low: 'success' };
-const statusColor = { Open: 'error', 'In Progress': 'warning', Pending: 'info', Resolved: 'success' };
+const PAGE_SIZE = 20;
 
 export default function AdminSupportScreen() {
-  const [tickets, setTickets] = useState(initialTickets);
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterPriority, setFilterPriority] = useState('all');
-  const [filterAgent, setFilterAgent] = useState('all');
-  const [search, setSearch] = useState('');
+  const [tickets, setTickets] = useState([]);
   const [page, setPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newTicket, setNewTicket] = useState({
-    subject: '',
-    customer: '',
-    email: '',
-    status: 'Open',
-    priority: 'Critical',
-    assignedTo: 'Sarah Wilson',
-  });
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [detailModal, setDetailModal] = useState(null);
+  const [updating, setUpdating] = useState(null);
 
-  const filteredTickets = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return tickets.filter((ticket) => {
-      const statusMatch = filterStatus === 'all' || ticket.status === filterStatus;
-      const priorityMatch = filterPriority === 'all' || ticket.priority === filterPriority;
-      const agentMatch = filterAgent === 'all' || ticket.assignedTo === filterAgent;
-      const searchMatch =
-        !term ||
-        ticket.subject.toLowerCase().includes(term) ||
-        ticket.customer.toLowerCase().includes(term) ||
-        ticket.email.toLowerCase().includes(term) ||
-        ticket.id.toLowerCase().includes(term);
-      return statusMatch && priorityMatch && agentMatch && searchMatch;
-    });
-  }, [tickets, filterStatus, filterPriority, filterAgent, search]);
+  const loadTickets = useCallback(() => {
+    setLoading(true);
+    supportService.getAdminTickets({ status: statusFilter || undefined, page: page - 1, size: PAGE_SIZE })
+      .then((paged) => {
+        setTickets(paged.data ?? []);
+        setTotalPages(paged.totalPages || 1);
+        setTotalElements(paged.totalElements || 0);
+      })
+      .catch(() => setError('Failed to load support tickets.'))
+      .finally(() => setLoading(false));
+  }, [page, statusFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredTickets.length / rowsPerPage));
-  const pagedTickets = useMemo(() => {
-    const start = (page - 1) * rowsPerPage;
-    return filteredTickets.slice(start, start + rowsPerPage);
-  }, [filteredTickets, page, rowsPerPage]);
+  useEffect(() => { loadTickets(); }, [loadTickets]);
 
-  const stats = useMemo(() => {
-    const total = tickets.length;
-    const open = tickets.filter((t) => t.status === 'Open').length;
-    const inProgress = tickets.filter((t) => t.status === 'In Progress').length;
-    const resolved = tickets.filter((t) => t.status === 'Resolved').length;
-    return { total, open, inProgress, resolved };
-  }, [tickets]);
+  const handleUpdateStatus = async (ticketId, newStatus) => {
+    setUpdating(ticketId);
+    try {
+      const updated = await supportService.updateTicketStatus(ticketId, newStatus);
+      setTickets((prev) => prev.map((t) => t.ticketId === updated.ticketId ? updated : t));
+      if (detailModal?.ticketId === updated.ticketId) setDetailModal(updated);
+    } catch (err) {
+      setError(err.message || 'Failed to update ticket status.');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const handleAssign = async (ticketId) => {
+    setUpdating(ticketId);
+    try {
+      const updated = await supportService.assignTicket(ticketId);
+      setTickets((prev) => prev.map((t) => t.ticketId === updated.ticketId ? updated : t));
+      if (detailModal?.ticketId === updated.ticketId) setDetailModal(updated);
+    } catch (err) {
+      setError(err.message || 'Failed to assign ticket.');
+    } finally {
+      setUpdating(null);
+    }
+  };
 
   const columns = [
     {
-      key: 'subject',
-      label: 'Subject',
-      render: (_, ticket) => (
+      key: 'ticketId', label: 'Ticket',
+      render: (v, row) => (
         <Box>
-          <Typography variant="body2" fontWeight={700}>
-            {ticket.subject}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {ticket.customer} • {ticket.email}
-          </Typography>
+          <Typography variant="body2" fontWeight={700}>#{v}</Typography>
+          <Typography variant="caption" color="text.secondary">{row.subject}</Typography>
         </Box>
       ),
     },
+    { key: 'createdByName', label: 'Customer' },
     {
-      key: 'priority',
-      label: 'Priority',
-      align: 'center',
-      render: (value) => <AppChip label={value} status={priorityColor[value] || 'default'} />,
+      key: 'priority', label: 'Priority', align: 'center',
+      render: (v) => <AppChip status={v?.toLowerCase()} label={v} />,
     },
     {
-      key: 'status',
-      label: 'Status',
-      align: 'center',
-      render: (value) => <AppChip label={value} status={statusColor[value] || 'default'} />,
+      key: 'status', label: 'Status', align: 'center',
+      render: (v) => <AppChip status={v?.toLowerCase().replace('_', '-')} label={v?.replace('_', ' ')} />,
     },
-    { key: 'assignedTo', label: 'Assigned to', align: 'center' },
-    { key: 'createdAt', label: 'Created', align: 'center' },
     {
-      key: 'actions',
-      label: 'Actions',
-      align: 'right',
-      render: (_, ticket) => (
-        <Stack direction="row" spacing={1} justifyContent="flex-end">
-          <AppButton size="small" variant="outlined" onClick={() => alert(`Ticket details: ${ticket.id}`)}>
-            View
-          </AppButton>
-          <AppButton
-            size="small"
-            color="error"
-            variant="outlined"
-            onClick={() => setTickets((prev) => prev.filter((t) => t.id !== ticket.id))}
-          >
-            Close
-          </AppButton>
-        </Stack>
+      key: 'assignedToName', label: 'Assigned To',
+      render: (v) => v || <Typography variant="caption" color="text.secondary">Unassigned</Typography>,
+    },
+    {
+      key: 'createdAt', label: 'Created',
+      render: (v) => v ? new Date(v).toLocaleDateString() : '—',
+    },
+    {
+      key: 'actions', label: '', align: 'right',
+      render: (_, row) => (
+        <AppButton size="small" variant="outlined" onClick={() => setDetailModal(row)}>View</AppButton>
       ),
     },
   ];
 
-  const handleCreateTicket = () => {
-    if (!newTicket.subject || !newTicket.customer || !newTicket.email) return;
-    setTickets((prev) => [
-      {
-        id: `TCK-${String(prev.length + 1).padStart(6, '0')}`,
-        createdAt: new Date().toLocaleString(),
-        updatedAt: new Date().toLocaleString(),
-        ...newTicket,
-      },
-      ...prev,
-    ]);
-    setIsModalOpen(false);
-    setNewTicket({
-      subject: '',
-      customer: '',
-      email: '',
-      status: 'Open',
-      priority: 'Critical',
-      assignedTo: 'Sarah Wilson',
-    });
+  const nextStatuses = {
+    OPEN: ['IN_PROGRESS', 'RESOLVED', 'CLOSED'],
+    IN_PROGRESS: ['RESOLVED', 'CLOSED'],
+    RESOLVED: ['CLOSED'],
+    CLOSED: [],
   };
 
   return (
@@ -215,125 +125,119 @@ export default function AdminSupportScreen() {
 
       <PageHeader
         title="Support Tickets"
-        subtitle="Manage customer requests and inquiries"
-        action={
-          <AppButton onClick={() => setIsModalOpen(true)}>+ Create Ticket</AppButton>
-        }
+        subtitle={`${totalElements} total tickets`}
+        action={<AppButton variant="outlined" onClick={loadTickets}>Refresh</AppButton>}
       />
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(5, 1fr)' }, gap: 1.25, mb: 2 }}>
-        <StatCard label="Total Tickets" value={stats.total} />
-        <StatCard label="Open" value={stats.open} trend={`${stats.open} active`} trendPositive={false} />
-        <StatCard label="In Progress" value={stats.inProgress} trend={`${stats.inProgress} running`} />
-        <StatCard label="Resolved" value={stats.resolved} trend="+99%" trendPositive />
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+
+      <Box sx={{ mb: 2 }}>
+        <AppSelect
+          label="Filter by Status"
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          options={STATUS_OPTIONS}
+          sx={{ minWidth: 200 }}
+        />
       </Box>
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} mb={2}>
-        <AppTextField
-          label="Search tickets"
-          placeholder="Search by id, subject, customer, email"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-        />
-        <AppSelect
-          label="Status"
-          value={filterStatus}
-          onChange={(e) => {
-            setFilterStatus(e.target.value);
-            setPage(1);
-          }}
-          options={statusOptions}
-          sx={{ minWidth: 180 }}
-        />
-        <AppSelect
-          label="Priority"
-          value={filterPriority}
-          onChange={(e) => {
-            setFilterPriority(e.target.value);
-            setPage(1);
-          }}
-          options={priorityOptions}
-          sx={{ minWidth: 180 }}
-        />
-        <AppSelect
-          label="Assigned to"
-          value={filterAgent}
-          onChange={(e) => {
-            setFilterAgent(e.target.value);
-            setPage(1);
-          }}
-          options={agentOptions}
-          sx={{ minWidth: 180 }}
-        />
-      </Stack>
-
-      <AppTable columns={columns} rows={pagedTickets} emptyMessage="No tickets found" />
+      {loading
+        ? <Stack spacing={1}>{[1, 2, 3, 4].map((i) => <Skeleton key={i} height={52} />)}</Stack>
+        : <AppTable columns={columns} rows={tickets} emptyMessage="No support tickets found" />
+      }
 
       <AppPagination
         page={page}
         count={totalPages}
-        total={filteredTickets.length}
-        rowsPerPage={rowsPerPage}
-        onPageChange={setPage}
-        onRowsPerPageChange={(value) => {
-          setRowsPerPage(value);
-          setPage(1);
-        }}
+        total={totalElements}
+        rowsPerPage={PAGE_SIZE}
+        onPageChange={(val) => setPage(val)}
       />
 
-      <AppModal
-        open={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="New Support Ticket"
-        actions={
-          <Stack direction="row" spacing={1} sx={{ width: '100%', justifyContent: 'flex-end' }}>
-            <AppButton variant="outlined" onClick={() => setIsModalOpen(false)}>
-              Cancel
-            </AppButton>
-            <AppButton onClick={handleCreateTicket}>Create Ticket</AppButton>
+      {/* Ticket Detail */}
+      {detailModal && (
+        <AppModal
+          open={!!detailModal}
+          onClose={() => setDetailModal(null)}
+          title={`Ticket #${detailModal.ticketId} — ${detailModal.subject}`}
+          actions={
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              {!detailModal.assignedToUserId && (
+                <AppButton size="small" variant="outlined" loading={updating === detailModal.ticketId} onClick={() => handleAssign(detailModal.ticketId)}>
+                  Assign to Me
+                </AppButton>
+              )}
+              {(nextStatuses[detailModal.status] ?? []).map((s) => (
+                <AppButton
+                  key={s}
+                  size="small"
+                  loading={updating === detailModal.ticketId}
+                  onClick={() => handleUpdateStatus(detailModal.ticketId, s)}
+                >
+                  {s.replace('_', ' ')}
+                </AppButton>
+              ))}
+              <AppButton variant="outlined" onClick={() => setDetailModal(null)}>Close</AppButton>
+            </Stack>
+          }
+        >
+          <Stack spacing={2}>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Customer</Typography>
+                <Typography variant="body2" fontWeight={600}>{detailModal.createdByName}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Priority</Typography>
+                <Box><AppChip status={detailModal.priority?.toLowerCase()} label={detailModal.priority} /></Box>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Category</Typography>
+                <Typography variant="body2" fontWeight={600}>{detailModal.category || '—'}</Typography>
+              </Box>
+              {detailModal.assignedToName && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary">Assigned To</Typography>
+                  <Typography variant="body2" fontWeight={600}>{detailModal.assignedToName}</Typography>
+                </Box>
+              )}
+            </Box>
+
+            <Divider />
+
+            {/* Messages */}
+            <Typography variant="subtitle2" fontWeight={700}>Conversation</Typography>
+            <Stack spacing={1.5} sx={{ maxHeight: 320, overflowY: 'auto' }}>
+              {(detailModal.messages ?? []).map((msg) => (
+                <Box
+                  key={msg.messageId}
+                  sx={{
+                    p: 1.5, borderRadius: 2,
+                    bgcolor: msg.senderType === 'ADMIN' ? 'primary.main' : 'action.hover',
+                    color: msg.senderType === 'ADMIN' ? 'primary.contrastText' : 'text.primary',
+                    alignSelf: msg.senderType === 'ADMIN' ? 'flex-end' : 'flex-start',
+                    maxWidth: '85%',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                    <Avatar sx={{ width: 20, height: 20, fontSize: 11 }}>
+                      {(msg.senderName || 'U')[0]}
+                    </Avatar>
+                    <Typography variant="caption" fontWeight={700}>{msg.senderName}</Typography>
+                  </Box>
+                  <Typography variant="body2">{msg.messageText}</Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.7, display: 'block', mt: 0.5 }}>
+                    {msg.createdAt ? new Date(msg.createdAt).toLocaleString() : ''}
+                  </Typography>
+                </Box>
+              ))}
+              {(detailModal.messages ?? []).length === 0 && (
+                <Typography variant="body2" color="text.secondary">No messages yet.</Typography>
+              )}
+            </Stack>
           </Stack>
-        }
-      >
-        <Stack spacing={1}>
-          <AppTextField
-            label="Subject"
-            value={newTicket.subject}
-            onChange={(e) => setNewTicket((p) => ({ ...p, subject: e.target.value }))}
-          />
-          <AppTextField
-            label="Customer"
-            value={newTicket.customer}
-            onChange={(e) => setNewTicket((p) => ({ ...p, customer: e.target.value }))}
-          />
-          <AppTextField
-            label="Email"
-            type="email"
-            value={newTicket.email}
-            onChange={(e) => setNewTicket((p) => ({ ...p, email: e.target.value }))}
-          />
-          <AppSelect
-            label="Status"
-            value={newTicket.status}
-            onChange={(e) => setNewTicket((p) => ({ ...p, status: e.target.value }))}
-            options={statusOptions.filter((o) => o.value !== 'all')}
-          />
-          <AppSelect
-            label="Priority"
-            value={newTicket.priority}
-            onChange={(e) => setNewTicket((p) => ({ ...p, priority: e.target.value }))}
-            options={priorityOptions.filter((o) => o.value !== 'all')}
-          />
-          <AppSelect
-            label="Assign to"
-            value={newTicket.assignedTo}
-            onChange={(e) => setNewTicket((p) => ({ ...p, assignedTo: e.target.value }))}
-            options={agentOptions.filter((o) => o.value !== 'all')}
-          />
-        </Stack>
-      </AppModal>
+        </AppModal>
+      )}
     </Box>
   );
 }
