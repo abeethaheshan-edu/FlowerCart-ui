@@ -1,12 +1,40 @@
-import apiClient from '../../../core/network/ApiClient';
+import apiClient, { ContentType } from '../../../core/network/ApiClient';
 import { resolvePath } from '../../../core/network/utils/PathResolver';
 import { API_PATH } from '../../../core/network/utils/ApiEndpoints';
 import { ProductModel, PagedResponseModel, CategoryModel, BrandModel } from '../models/ProductModels';
 
-function _mapProducts(pagedData) {
+function mapPagedProducts(pagedData) {
   const paged = new PagedResponseModel(pagedData);
   paged.data = (pagedData.data ?? []).map((p) => new ProductModel(p));
   return paged;
+}
+
+function buildMultipartRequest(method, url, body, imageFiles) {
+  const req = method === 'PUT' ? apiClient.put() : apiClient.post();
+  req.url = url;
+  req.contentType = ContentType.MULTIPART;
+
+  const dataPayload = {
+    name:            body.name,
+    description:     body.description ?? '',
+    sku:             body.sku ?? '',
+    price:           body.price,
+    categoryId:      body.categoryId,
+    brandId:         body.brandId ?? null,
+    stockQty:        body.stockQty ?? 0,
+    reorderLevel:    body.reorderLevel ?? 5,
+    status:          body.status ?? 'ACTIVE',
+    primaryImageUrl: body.primaryImageUrl ?? null,
+    imageUrls:       body.imageUrls ?? [],
+  };
+
+  req.addField('data', JSON.stringify(dataPayload));
+
+  imageFiles
+    .filter(Boolean)
+    .forEach((file) => req.addFile('files', file, file.name));
+
+  return req;
 }
 
 // ── Public product endpoints ──────────────────────────────────────────────────
@@ -16,7 +44,7 @@ function getProducts({ page = 0, size = 12, sortBy = 'createdAt', direction = 'd
   req.url = resolvePath(API_PATH.products.list);
   req.query = { page, size, sortBy, direction };
   return req
-    .then((res) => _mapProducts(res.data))
+    .then((res) => mapPagedProducts(res.data))
     .catch((err) => Promise.reject(err));
 }
 
@@ -33,7 +61,7 @@ function getProductsByCategory(categoryId, { page = 0, size = 12 } = {}) {
   req.url = resolvePath(API_PATH.products.byCategory, categoryId);
   req.query = { page, size };
   return req
-    .then((res) => _mapProducts(res.data))
+    .then((res) => mapPagedProducts(res.data))
     .catch((err) => Promise.reject(err));
 }
 
@@ -42,7 +70,7 @@ function getProductsByBrand(brandId, { page = 0, size = 12 } = {}) {
   req.url = resolvePath(API_PATH.products.byBrand, brandId);
   req.query = { page, size };
   return req
-    .then((res) => _mapProducts(res.data))
+    .then((res) => mapPagedProducts(res.data))
     .catch((err) => Promise.reject(err));
 }
 
@@ -51,7 +79,7 @@ function searchProducts(keyword, { page = 0, size = 12 } = {}) {
   req.url = resolvePath(API_PATH.products.search);
   req.query = { keyword, page, size };
   return req
-    .then((res) => _mapProducts(res.data))
+    .then((res) => mapPagedProducts(res.data))
     .catch((err) => Promise.reject(err));
 }
 
@@ -62,23 +90,34 @@ function getAdminProducts({ page = 0, size = 20, sortBy = 'createdAt', direction
   req.url = resolvePath(API_PATH.admin.products);
   req.query = { page, size, sortBy, direction };
   return req
-    .then((res) => _mapProducts(res.data))
+    .then((res) => mapPagedProducts(res.data))
     .catch((err) => Promise.reject(err));
 }
 
-function createProduct(body) {
-  const req = apiClient.post();
-  req.url = resolvePath(API_PATH.products.create);
-  req.body = body;
+function createProduct(body, imageFiles = []) {
+  console.log(body , "CCCCCCC", imageFiles);
+  
+  const url = resolvePath(API_PATH.products.create);
+  const validFiles = imageFiles.filter(Boolean);
+
+  const req = validFiles.length > 0
+    ? buildMultipartRequest('POST', url, body, validFiles)
+    : (() => { const r = apiClient.post(); r.url = url; r.body = body; return r; })();
+  console.log(req , "REQ");
+  
   return req
     .then((res) => new ProductModel(res.data))
     .catch((err) => Promise.reject(err));
 }
 
-function updateProduct(productId, body) {
-  const req = apiClient.put();
-  req.url = resolvePath(API_PATH.products.update, productId);
-  req.body = body;
+function updateProduct(productId, body, imageFiles = []) {
+  const url = resolvePath(API_PATH.products.update, productId);
+  const validFiles = imageFiles.filter(Boolean);
+
+  const req = validFiles.length > 0
+    ? buildMultipartRequest('PUT', url, body, validFiles)
+    : (() => { const r = apiClient.put(); r.url = url; r.body = body; return r; })();
+
   return req
     .then((res) => new ProductModel(res.data))
     .catch((err) => Promise.reject(err));
@@ -98,7 +137,7 @@ function getCategories() {
   const req = apiClient.get();
   req.url = resolvePath(API_PATH.categories.list);
   return req
-    .then((res) => (res.data ?? []).map((c) => new CategoryModel(c)))
+    .then((res) => (res.data ?? ["Mal","Namal"]).map((c) => new CategoryModel(c)))
     .catch((err) => Promise.reject(err));
 }
 

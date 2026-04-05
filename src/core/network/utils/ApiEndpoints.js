@@ -15,7 +15,7 @@ export const API_PATH = {
     byBrand: '/products/brand/{param1}',
     search: '/products/search',
     create: '/products',
-    update: '/roducts/{param1}',
+    update: '/products/{param1}',
     delete: '/products/{param1}',
   },
   categories: {

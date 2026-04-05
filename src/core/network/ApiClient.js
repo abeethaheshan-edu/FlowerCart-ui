@@ -39,6 +39,8 @@ export class ApiRequest {
   }
 
   _buildHeaders() {
+    console.log(this.contentType);
+    
     const headers = { 'Content-Type': this.contentType, ...this.headers };
     if (this.contentType === ContentType.MULTIPART) delete headers['Content-Type'];
     return headers;

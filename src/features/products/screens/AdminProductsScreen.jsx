@@ -1,66 +1,61 @@
 import { useState, useEffect, useCallback } from 'react';
 import Box from '@mui/material/Box';
-import Stack from '@mui/material/Stack';
-import Typography from '@mui/material/Typography';
-import Skeleton from '@mui/material/Skeleton';
 import Alert from '@mui/material/Alert';
-import InputAdornment from '@mui/material/InputAdornment';
-import SearchIcon from '@mui/icons-material/Search';
-import AppBreadcrumbs from '../../../components/common/AppBreadcrumbs';
-import AppButton from '../../../components/common/AppButton';
-import AppChip from '../../../components/common/AppChip';
-import AppModal from '../../../components/common/AppModal';
-import AppPagination from '../../../components/common/AppPagination';
-import AppSelect from '../../../components/common/AppSelect';
-import AppTable from '../../../components/common/AppTable';
-import AppTextField from '../../../components/common/AppTextField';
+import Snackbar from '@mui/material/Snackbar';
+import Typography from '@mui/material/Typography';
+import Stack from '@mui/material/Stack';
 import PageHeader from '../../../components/common/PageHeader';
+import AppModal from '../../../components/common/AppModal';
+import AppButton from '../../../components/common/AppButton';
+import AppPagination from '../../../components/common/AppPagination';
+import ProductFilters from './admin/ProductFilters';
+import ProductTable from './admin/ProductTable';
+import ProductFormModal from './admin/ProductFormModal';
 import { productService } from '../services/productService';
-import { ProductCreateModel } from '../models/ProductModels';
-
-const STATUS_OPTIONS = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'INACTIVE', label: 'Inactive' },
-];
 
 const PAGE_SIZE = 20;
 
-const EMPTY_FORM = {
-  name: '', description: '', sku: '', price: '',
-  categoryId: '', brandId: '', stockQty: 0, reorderLevel: 5,
-  imageUrls: '', primaryImageUrl: '', status: 'ACTIVE',
-};
 
 export default function AdminProductsScreen() {
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [brands, setBrands] = useState([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [products, setProducts]           = useState([]);
+  const [categories, setCategories]       = useState([]);
+  const [brands, setBrands]               = useState([]);
+  const [page, setPage]                   = useState(1);
+  const [totalPages, setTotalPages]       = useState(1);
   const [totalElements, setTotalElements] = useState(0);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [formModal, setFormModal] = useState(null); // null | 'create' | ProductModel
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const [search, setSearch]               = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [statusFilter, setStatusFilter]   = useState('');
+  const [loading, setLoading]             = useState(true);
+  const [selectedIds, setSelectedIds]     = useState(new Set());
+  const [formModal, setFormModal]         = useState(null);
+  const [saving, setSaving]               = useState(false);
+  const [deleteTarget, setDeleteTarget]   = useState(null);
+  const [deleting, setDeleting]           = useState(false);
+  const [snack, setSnack]                 = useState({ open: false, msg: '', sev: 'success' });
+
+  const showSnack = (msg, sev = 'success') => setSnack({ open: true, msg, sev });
 
   const loadProducts = useCallback(() => {
     setLoading(true);
-    const fn = search.trim()
+    setSelectedIds(new Set());
+
+    const fetchFn = search.trim()
       ? productService.searchProducts(search.trim(), { page: page - 1, size: PAGE_SIZE })
       : productService.getAdminProducts({ page: page - 1, size: PAGE_SIZE });
-    fn
+
+    fetchFn
       .then((paged) => {
-        setProducts(paged.data ?? []);
+        let data = paged.data ?? [];
+        if (categoryFilter) data = data.filter((p) => String(p.categoryId) === String(categoryFilter));
+        if (statusFilter)   data = data.filter((p) => p.status === statusFilter);
+        setProducts(data);
         setTotalPages(paged.totalPages || 1);
         setTotalElements(paged.totalElements || 0);
       })
-      .catch(() => setError('Failed to load products.'))
+      .catch(() => showSnack('Failed to load products.', 'error'))
       .finally(() => setLoading(false));
-  }, [page, search]);
+  }, [page, search, categoryFilter, statusFilter]);
 
   useEffect(() => { loadProducts(); }, [loadProducts]);
 
@@ -69,51 +64,26 @@ export default function AdminProductsScreen() {
     productService.getBrands().then(setBrands).catch(() => {});
   }, []);
 
-  const openCreate = () => {
-    setForm(EMPTY_FORM);
-    setFormModal('create');
-  };
-
-  const openEdit = (product) => {
-    setForm({
-      name: product.name,
-      description: product.description,
-      sku: product.sku,
-      price: product.price,
-      categoryId: product.categoryId ?? '',
-      brandId: product.brandId ?? '',
-      stockQty: product.stockQty,
-      reorderLevel: product.reorderLevel,
-      imageUrls: (product.imageUrls ?? []).join(', '),
-      primaryImageUrl: product.primaryImageUrl ?? '',
-      status: product.status,
-    });
-    setFormModal(product);
-  };
-
-  const handleSave = async () => {
-    if (!form.name || !form.price || !form.categoryId) {
-      setError('Name, price, and category are required.');
-      return;
-    }
+  const handleSave = async ({ form, imageFiles, existingImages }) => {
     setSaving(true);
-    const body = new ProductCreateModel({
-      ...form,
-      price: parseFloat(form.price),
-      categoryId: parseInt(form.categoryId),
-      brandId: form.brandId ? parseInt(form.brandId) : null,
-      imageUrls: form.imageUrls ? form.imageUrls.split(',').map((u) => u.trim()).filter(Boolean) : [],
-    });
     try {
-      if (formModal === 'create') {
-        await productService.createProduct(body);
-      } else {
-        await productService.updateProduct(formModal.productId, body);
-      }
+      const productId = formModal?.productId;
+      const payload = {
+        ...form,
+        primaryImageUrl: existingImages[0] ?? null,
+        imageUrls:       existingImages.slice(1).filter(Boolean),
+      };
+
+      productId
+        ? await productService.updateProduct(productId, payload, imageFiles)
+        : await productService.createProduct(payload, imageFiles);
+
       setFormModal(null);
+      showSnack(productId ? 'Product updated successfully.' : 'Product created successfully.');
+      setPage(1);
       loadProducts();
     } catch (err) {
-      setError(err.message || 'Failed to save product.');
+      showSnack(err.message || 'Failed to save product.', 'error');
     } finally {
       setSaving(false);
     }
@@ -125,135 +95,163 @@ export default function AdminProductsScreen() {
     try {
       await productService.deleteProduct(deleteTarget.productId);
       setDeleteTarget(null);
+      showSnack('Product deleted.');
       loadProducts();
     } catch (err) {
-      setError(err.message || 'Failed to delete product.');
+      showSnack(err.message || 'Failed to delete product.', 'error');
     } finally {
       setDeleting(false);
     }
   };
 
-  const columns = [
-    {
-      key: 'name', label: 'Product',
-      render: (_, row) => (
-        <Box>
-          <Typography variant="body2" fontWeight={700}>{row.name}</Typography>
-          <Typography variant="caption" color="text.secondary">
-            {row.sku} • {row.categoryName}
-          </Typography>
-        </Box>
-      ),
-    },
-    { key: 'price', label: 'Price', align: 'right', render: (v) => `$${parseFloat(v || 0).toFixed(2)}` },
-    { key: 'stockQty', label: 'Stock', align: 'center' },
-    {
-      key: 'status', label: 'Status', align: 'center',
-      render: (v) => <AppChip status={v?.toLowerCase()} label={v} />,
-    },
-    {
-      key: 'actions', label: 'Actions', align: 'right',
-      render: (_, row) => (
-        <Stack direction="row" spacing={1} justifyContent="flex-end">
-          <AppButton size="small" variant="outlined" onClick={() => openEdit(row)}>Edit</AppButton>
-          <AppButton size="small" color="error" variant="outlined" onClick={() => setDeleteTarget(row)}>Delete</AppButton>
-        </Stack>
-      ),
-    },
-  ];
+  const handleToggleStatus = async (product) => {
+    const newStatus = product.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    setProducts((prev) =>
+      prev.map((p) => p.productId === product.productId ? { ...p, status: newStatus } : p)
+    );
+    try {
+      await productService.updateProduct(product.productId, { ...product, status: newStatus });
+    } catch {
+      setProducts((prev) =>
+        prev.map((p) => p.productId === product.productId ? { ...p, status: product.status } : p)
+      );
+      showSnack('Failed to update status.', 'error');
+    }
+  };
 
-  const catOptions = [{ value: '', label: 'Select Category' }, ...categories.map((c) => ({ value: c.categoryId, label: c.name }))];
-  const brandOptions = [{ value: '', label: 'No Brand' }, ...brands.map((b) => ({ value: b.brandId, label: b.name }))];
+  const handleStockChange = (productId, newQty) => {
+    setProducts((prev) =>
+      prev.map((p) => p.productId === productId ? { ...p, stockQty: newQty } : p)
+    );
+  };
+
+  const handleSelectOne = (productId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(productId) ? next.delete(productId) : next.add(productId);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    setSelectedIds((prev) =>
+      prev.size === products.length ? new Set() : new Set(products.map((p) => p.productId))
+    );
+  };
+
+  const handleExport = () => {
+    const rows = [
+      ['ID', 'Name', 'SKU', 'Category', 'Price', 'Stock', 'Status'],
+      ...products.map((p) => [p.productId, p.name, p.sku, p.categoryName, p.price, p.stockQty, p.status]),
+    ];
+    const csv = rows.map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'products.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSearchChange = (value) => {
+    setSearch(value);
+    setPage(1);
+  };
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
-      <AppBreadcrumbs items={[{ label: 'Dashboard', to: '/admin' }, { label: 'Products' }]} />
-
       <PageHeader
-        title="Products"
-        subtitle={`${totalElements} products`}
-        action={
-          <Stack direction="row" spacing={1}>
-            <AppButton variant="outlined" onClick={loadProducts}>Refresh</AppButton>
-            <AppButton onClick={openCreate}>Add Product</AppButton>
-          </Stack>
-        }
+        title="Product Management"
+        subtitle="Manage your product catalog and inventory"
       />
 
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+      <ProductFilters
+        search={search}
+        onSearchChange={handleSearchChange}
+        categoryFilter={categoryFilter}
+        onCategoryChange={(v) => { setCategoryFilter(v); setPage(1); }}
+        categories={categories}
+        statusFilter={statusFilter}
+        onStatusChange={(v) => { setStatusFilter(v); setPage(1); }}
+        onExport={handleExport}
+        onAddProduct={() => setFormModal({})}
+      />
 
-      <Box sx={{ mb: 2 }}>
-        <AppTextField
-          label="Search products"
-          placeholder="Search by name or SKU…"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          endAdornment={<InputAdornment position="end"><SearchIcon fontSize="small" /></InputAdornment>}
+      <ProductTable
+        products={products}
+        loading={loading}
+        selectedIds={selectedIds}
+        onSelectOne={handleSelectOne}
+        onSelectAll={handleSelectAll}
+        onView={(p) => window.open(`/product/${p.productId}`, '_blank')}
+        onEdit={(p) => setFormModal(p)}
+        onDelete={(p) => setDeleteTarget(p)}
+        onToggleStatus={handleToggleStatus}
+        onStockChange={handleStockChange}
+      />
+
+      {totalPages > 1 && (
+        <AppPagination
+          page={page}
+          count={totalPages}
+          total={totalElements}
+          rowsPerPage={PAGE_SIZE}
+          showRowsPerPage={false}
+          onPageChange={(val) => setPage(val)}
+          sx={{ mt: 0.5 }}
         />
-      </Box>
+      )}
 
-      {loading
-        ? <Stack spacing={1}>{[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} height={52} />)}</Stack>
-        : <AppTable columns={columns} rows={products} emptyMessage="No products found" />
-      }
+      {totalElements > 0 && !loading && (
+        <Box sx={{ px: 2, py: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Showing {(page - 1) * PAGE_SIZE + 1} to {Math.min(page * PAGE_SIZE, totalElements)} of {totalElements} products
+          </Typography>
+        </Box>
+      )}
 
-      <AppPagination
-        page={page}
-        count={totalPages}
-        total={totalElements}
-        rowsPerPage={PAGE_SIZE}
-        onPageChange={(val) => setPage(val)}
+      <ProductFormModal
+        open={!!formModal}
+        product={formModal && formModal.productId ? formModal : null}
+        categories={categories}
+        brands={brands}
+        onClose={() => setFormModal(null)}
+        onSave={handleSave}
+        saving={saving}
+        onCategoryCreated={(newCat) => setCategories((prev) => [...prev, newCat])}
+        onBrandCreated={(newBrand) => setBrands((prev) => [...prev, newBrand])}
       />
 
-      {/* Create / Edit Modal */}
-      <AppModal
-        open={!!formModal}
-        onClose={() => setFormModal(null)}
-        title={formModal === 'create' ? 'Add Product' : `Edit — ${formModal?.name}`}
-        actions={
-          <Stack direction="row" spacing={1} sx={{ width: '100%', justifyContent: 'flex-end' }}>
-            <AppButton variant="outlined" onClick={() => setFormModal(null)}>Cancel</AppButton>
-            <AppButton loading={saving} onClick={handleSave}>
-              {formModal === 'create' ? 'Create' : 'Save Changes'}
-            </AppButton>
-          </Stack>
-        }
-      >
-        <Stack spacing={2}>
-          <AppTextField label="Product Name *" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
-          <AppTextField label="Description" multiline rows={3} value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
-          <Stack direction="row" spacing={2}>
-            <AppTextField label="SKU" value={form.sku} onChange={(e) => setForm((p) => ({ ...p, sku: e.target.value }))} />
-            <AppTextField label="Price ($) *" type="number" value={form.price} onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} />
-          </Stack>
-          <AppSelect label="Category *" value={form.categoryId} onChange={(e) => setForm((p) => ({ ...p, categoryId: e.target.value }))} options={catOptions} />
-          <AppSelect label="Brand" value={form.brandId} onChange={(e) => setForm((p) => ({ ...p, brandId: e.target.value }))} options={brandOptions} />
-          <Stack direction="row" spacing={2}>
-            <AppTextField label="Stock Qty" type="number" value={form.stockQty} onChange={(e) => setForm((p) => ({ ...p, stockQty: parseInt(e.target.value) || 0 }))} />
-            <AppTextField label="Reorder Level" type="number" value={form.reorderLevel} onChange={(e) => setForm((p) => ({ ...p, reorderLevel: parseInt(e.target.value) || 0 }))} />
-          </Stack>
-          <AppTextField label="Primary Image URL" value={form.primaryImageUrl} onChange={(e) => setForm((p) => ({ ...p, primaryImageUrl: e.target.value }))} />
-          <AppTextField label="All Image URLs (comma separated)" value={form.imageUrls} onChange={(e) => setForm((p) => ({ ...p, imageUrls: e.target.value }))} />
-          <AppSelect label="Status" value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} options={STATUS_OPTIONS} />
-        </Stack>
-      </AppModal>
-
-      {/* Delete Confirmation */}
       <AppModal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         title="Delete Product"
         actions={
-          <Stack direction="row" spacing={1} sx={{ width: '100%', justifyContent: 'flex-end' }}>
-            <AppButton variant="outlined" onClick={() => setDeleteTarget(null)}>Cancel</AppButton>
-            <AppButton color="error" loading={deleting} onClick={handleDelete}>Delete</AppButton>
+          <Stack direction="row" spacing={1.5} sx={{ width: '100%', justifyContent: 'flex-end' }}>
+            <AppButton variant="outlined" onClick={() => setDeleteTarget(null)} sx={{ borderColor: 'divider', color: 'text.secondary' }}>
+              Cancel
+            </AppButton>
+            <AppButton color="error" loading={deleting} onClick={handleDelete} sx={{ fontWeight: 700 }}>
+              Delete Product
+            </AppButton>
           </Stack>
         }
       >
-        <Typography>
-          Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+        <Typography variant="body1" sx={{ lineHeight: 1.7 }}>
+          Are you sure you want to delete <strong>{deleteTarget?.name}</strong>?
+          This will permanently remove the product and all associated data. This action cannot be undone.
         </Typography>
       </AppModal>
+
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={3000}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert severity={snack.sev} onClose={() => setSnack((s) => ({ ...s, open: false }))} sx={{ minWidth: 260 }}>
+          {snack.msg}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
