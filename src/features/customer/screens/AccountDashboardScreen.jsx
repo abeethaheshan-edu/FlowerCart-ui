@@ -43,7 +43,8 @@ export default function AccountDashboardScreen() {
   }, [navigate]);
 
   const handleLogout = async () => {
-    await authService.logout();
+    //await authService.logout();
+    window.localStorage.clear();
     navigate('/auth/login');
   };
 
