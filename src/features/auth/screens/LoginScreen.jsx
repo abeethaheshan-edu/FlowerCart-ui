@@ -40,7 +40,7 @@ export default function LoginScreen() {
       const auth = await authService.login(values);
       navigate(auth.user.isAdmin ? '/admin' : '/');
     } catch (err) {
-      setServerError(err.message ?? 'Login failed. Please try again.');
+      setServerError(err ?? 'Login failed. Please try again.');
     } finally {
       UILoader.hide();
     }

@@ -9,7 +9,7 @@ const INTERCEPTOR_HANDLED_TYPES = new Set([
 ]);
 
 export const api = axios.create({
-  baseURL: "/api/v1",
+  baseURL: '/api/v1',
   timeout: 10_000,
 });
 
@@ -22,17 +22,35 @@ function processQueue(error, newAccessToken = null) {
 }
 
 async function refreshAccessToken() {
+  console.log("REFRESHTOKEN");
+  
   const refreshToken = StorageService.getRefreshToken();
   if (!refreshToken) throw new Error('No refresh token available');
-  const { data } = await api.post(API_PATH.auth.refresh, { refreshToken });
-  StorageService.setAccessToken(data.accessToken);
-  StorageService.setRefreshToken(data.refreshToken);
-  return data.accessToken;
+  console.log("REFRESHTOKEN");
+  
+  const response = await api.post(API_PATH.auth.refresh,{ refreshToken });
+  const newRefreshToken =
+    response.headers['x-refresh-token'] ||
+    response.headers['refresh-token'] ||
+    response.headers['authorization'];
+
+  const accessToken =  response.headers['x-access-token'] ||  response.headers['access-token'] ;
+  StorageService.setAccessToken(accessToken);
+
+  if (newRefreshToken) StorageService.setRefreshToken(newRefreshToken);
+  return accessToken;
 }
 
 api.interceptors.request.use(
   (config) => {
     const token = StorageService.getAccessToken();
+
+    if (config.url === API_PATH.auth.refresh) {
+      const refreshToken = StorageService.getRefreshToken();
+      if (refreshToken) config.headers.Authorization = `Bearer ${refreshToken}`;
+      return config;
+    }
+
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   },
