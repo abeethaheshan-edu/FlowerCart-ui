@@ -5,7 +5,7 @@ import { CartModel } from '../../order/models/OrderModels';
 
 function getCart() {
   const req = apiClient.get();
-  req.url = resolvePath(API_PATH.cart.get);
+  req.url   = resolvePath(API_PATH.cart.get);
   return req
     .then((res) => new CartModel(res.data))
     .catch((err) => Promise.reject(err));
@@ -13,8 +13,8 @@ function getCart() {
 
 function addItem(productId, quantity = 1) {
   const req = apiClient.post();
-  req.url = resolvePath(API_PATH.cart.addItem);
-  req.body = { productId, quantity };
+  req.url   = resolvePath(API_PATH.cart.addItem);
+  req.body  = { productId, quantity };
   return req
     .then((res) => new CartModel(res.data))
     .catch((err) => Promise.reject(err));
@@ -22,7 +22,7 @@ function addItem(productId, quantity = 1) {
 
 function updateItemQuantity(cartItemId, quantity) {
   const req = apiClient.patch();
-  req.url = resolvePath(API_PATH.cart.updateItem, cartItemId);
+  req.url   = resolvePath(API_PATH.cart.updateItem, cartItemId);
   req.query = { quantity };
   return req
     .then((res) => new CartModel(res.data))
@@ -31,7 +31,7 @@ function updateItemQuantity(cartItemId, quantity) {
 
 function removeItem(cartItemId) {
   const req = apiClient.delete();
-  req.url = resolvePath(API_PATH.cart.removeItem, cartItemId);
+  req.url   = resolvePath(API_PATH.cart.removeItem, cartItemId);
   return req
     .then((res) => new CartModel(res.data))
     .catch((err) => Promise.reject(err));
@@ -39,7 +39,7 @@ function removeItem(cartItemId) {
 
 function clearCart() {
   const req = apiClient.delete();
-  req.url = resolvePath(API_PATH.cart.clear);
+  req.url   = resolvePath(API_PATH.cart.clear);
   return req
     .then(() => null)
     .catch((err) => Promise.reject(err));

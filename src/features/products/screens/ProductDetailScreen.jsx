@@ -34,7 +34,10 @@ import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import BoltIcon from '@mui/icons-material/Bolt';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import AppButton from '../../../components/common/AppButton';
+import AppModal from '../../../components/common/AppModal';
 import AppBreadcrumbs from '../../../components/common/AppBreadcrumbs';
 import bannerImg from '../../../assets/flower-bouquet.png';
 import { productService } from '../services/productService';
@@ -43,10 +46,7 @@ import { wishlistService } from '../../wishlist/services/wishlistService';
 import { authService } from '../../auth/services/authService';
 import apiClient from '../../../core/network/ApiClient';
 
-/* ─────────────────────────────────────
-   Static color swatches (UI only — backend
-   does not have color field, shown as demo)
-───────────────────────────────────── */
+
 const FLOWER_COLORS = [
   { value: 'red',    hex: '#E53935', gradient: false },
   { value: 'pink',   hex: '#F06292', gradient: false },
@@ -55,9 +55,7 @@ const FLOWER_COLORS = [
   { value: 'mixed',  gradient: true, from: '#FDD835', to: '#E53935' },
 ];
 
-/* ─────────────────────────────────────
-   Star helpers
-───────────────────────────────────── */
+
 function Stars({ rating = 5, size = 18, interactive = false, onRate }) {
   return (
     <Box sx={{ display: 'flex', gap: '1px' }}>
@@ -82,9 +80,7 @@ function Stars({ rating = 5, size = 18, interactive = false, onRate }) {
   );
 }
 
-/* ─────────────────────────────────────
-   Rating breakdown bar
-───────────────────────────────────── */
+
 function RatingBar({ star, pct }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.8 }}>
@@ -107,9 +103,7 @@ function RatingBar({ star, pct }) {
   );
 }
 
-/* ─────────────────────────────────────
-   Guarantee row item
-───────────────────────────────────── */
+
 function GuaranteeItem({ icon: Icon, text, color = '#E85D8E' }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.8 }}>
@@ -119,9 +113,6 @@ function GuaranteeItem({ icon: Icon, text, color = '#E85D8E' }) {
   );
 }
 
-/* ─────────────────────────────────────
-   Review card — matches design
-───────────────────────────────────── */
 function ReviewCard({ review }) {
   const [helpful, setHelpful] = useState(Math.floor(Math.random() * 30) + 5);
   const [clicked, setClicked] = useState(false);
@@ -203,6 +194,7 @@ export default function ProductDetailScreen() {
   const [selectedColor,  setSelectedColor]  = useState('red');
   const [quantity,       setQuantity]       = useState(5);
   const [addingToCart,   setAddingToCart]   = useState(false);
+  const [buyNowLoading,  setBuyNowLoading]  = useState(false);
   const [inWishlist,     setInWishlist]     = useState(false);
   const [wishlistLoading,setWishlistLoading]= useState(false);
   const [tab,            setTab]            = useState(0);
@@ -210,6 +202,7 @@ export default function ProductDetailScreen() {
   const [reviewDialog,   setReviewDialog]   = useState(false);
   const [newReview,      setNewReview]      = useState({ rating: 5, comment: '' });
   const [submitting,     setSubmitting]     = useState(false);
+  const [loginPopup,     setLoginPopup]     = useState(false);
 
   const showSnack = (msg, sev = 'success') => setSnack({ open: true, msg, sev });
 
@@ -253,6 +246,20 @@ export default function ProductDetailScreen() {
       showSnack(err.message || 'Could not add to cart', 'error');
     } finally {
       setAddingToCart(false);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!authService.isAuthenticated()) { setLoginPopup(true); return; }
+    if (!product.isInStock) return;
+    setBuyNowLoading(true);
+    try {
+      await cartService.addItem(product.productId, quantity);
+      navigate('/cart');
+    } catch (err) {
+      showSnack(err.message || 'Could not process. Please try again.', 'error');
+    } finally {
+      setBuyNowLoading(false);
     }
   };
 
@@ -482,7 +489,7 @@ export default function ProductDetailScreen() {
               </Box>
 
               {/* Action buttons */}
-              <Box sx={{ display: 'flex', gap: 1.5, mb: 3 }}>
+              <Box sx={{ display: 'flex', gap: 1.5, mb: 3, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
                 <AppButton
                   size="large"
                   fullWidth
@@ -499,6 +506,24 @@ export default function ProductDetailScreen() {
                 >
                   {product.isInStock ? 'Add to Cart' : 'Out of Stock'}
                 </AppButton>
+
+                <AppButton
+                  size="large"
+                  fullWidth
+                  loading={buyNowLoading}
+                  disabled={!product.isInStock}
+                  startIcon={!buyNowLoading && <BoltIcon />}
+                  onClick={handleBuyNow}
+                  sx={{
+                    bgcolor: product.isInStock ? '#1a1a2e' : undefined,
+                    color: product.isInStock ? '#fff' : undefined,
+                    fontWeight: 700, fontSize: '1rem', py: 1.5, borderRadius: 2,
+                    '&:hover': { bgcolor: product.isInStock ? '#2d2d44' : undefined },
+                  }}
+                >
+                  Buy Now
+                </AppButton>
+
                 <IconButton
                   onClick={handleWishlistToggle}
                   disabled={wishlistLoading}
@@ -701,6 +726,66 @@ export default function ProductDetailScreen() {
           </AppButton>
         </DialogActions>
       </Dialog>
+
+      {/* ── LOGIN REQUIRED POPUP ── */}
+      <AppModal
+        open={loginPopup}
+        onClose={() => setLoginPopup(false)}
+        title=""
+        maxWidth="xs"
+        actions={
+          <Box sx={{ display: 'flex', gap: 1.5, width: '100%', justifyContent: 'flex-end' }}>
+            <AppButton
+              variant="outlined"
+              onClick={() => setLoginPopup(false)}
+              sx={{ borderColor: 'divider', color: 'text.secondary', borderRadius: 2 }}
+            >
+              Cancel
+            </AppButton>
+            <AppButton
+              onClick={() => { setLoginPopup(false); navigate('/auth/login', { state: { from: `/product/${id}` } }); }}
+              sx={{ bgcolor: '#E85D8E', color: '#fff', fontWeight: 700, px: 3, borderRadius: 2, '&:hover': { bgcolor: '#C94375' } }}
+            >
+              Go to Login
+            </AppButton>
+          </Box>
+        }
+      >
+        <Box sx={{ textAlign: 'center', py: 1.5 }}>
+          <Box sx={{
+            width: 64, height: 64, borderRadius: '50%',
+            bgcolor: '#fce4ec', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', mx: 'auto', mb: 2.5,
+          }}>
+            <LockOutlinedIcon sx={{ fontSize: 30, color: '#E85D8E' }} />
+          </Box>
+
+          <Typography variant="h6" fontWeight={800} sx={{ mb: 1 }}>
+            Login Required
+          </Typography>
+
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.7, maxWidth: 280, mx: 'auto' }}>
+            You need to be logged in to purchase flowers.
+            Sign in to your account to continue with your order.
+          </Typography>
+
+          <Box sx={{
+            bgcolor: '#fdf2f6', border: '1px solid #fce4ec',
+            borderRadius: 2, px: 2, py: 1.5, mb: 1,
+          }}>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
+              Don't have an account?{' '}
+              <Box
+                component="span"
+                onClick={() => { setLoginPopup(false); navigate('/auth/register'); }}
+                sx={{ color: '#E85D8E', fontWeight: 700, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+              >
+                Create one free →
+              </Box>
+            </Typography>
+          </Box>
+        </Box>
+      </AppModal>
 
       {/* Snackbar */}
       <Snackbar
