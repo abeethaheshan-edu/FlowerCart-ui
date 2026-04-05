@@ -51,7 +51,7 @@ export default function AdminSettingsScreen() {
     language: 'en-US',
     timezone: 'UTC-05:00',
     dateFormat: 'MM/DD/YYYY',
-  });
+  });    
 
   const [store, setStore] = useState({
     name: 'ShopSphere',
