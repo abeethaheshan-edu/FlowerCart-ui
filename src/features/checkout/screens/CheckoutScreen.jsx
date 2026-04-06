@@ -112,7 +112,7 @@ function SelectField({ control, name, rules, label, options, placeholder }) {
       control={control}
       rules={rules}
       render={({ field, fieldState }) => (
-        <Box>
+        <Box sx={{minWidth:50}}>
           <FieldLabel text={label} required={!!rules?.required} />
           <TextField
             {...field}
@@ -120,7 +120,7 @@ function SelectField({ control, name, rules, label, options, placeholder }) {
             fullWidth
             size="small"
             error={!!fieldState.error}
-            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: 'background.paper' } }}
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: 'background.paper' ,minWidth:10} }}
           >
             {placeholder && <MenuItem value="" disabled>{placeholder}</MenuItem>}
             {options.map((opt) => (
@@ -217,7 +217,7 @@ function ShippingStep({ defaultEmail, onNext, onBackToCart }) {
               rules={{ required: 'City is required' }} />
           </Grid>
           <Grid item xs={12} sm={4}>
-            <SelectField control={control} name="state" label="State"
+            <SelectField   control={control} name="state" label="State"
               placeholder="Select State" options={US_STATES}
               rules={{ required: 'State is required' }}
             />
@@ -390,7 +390,7 @@ function PaymentStepInner({ address, cart, onSuccess, onBack }) {
               />
             </StripeField>
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid item >
             <StripeField label="CVC" required error={cardCvcError}>
               <CardCvcElement
                 options={{ ...STRIPE_ELEMENT_STYLE, placeholder: '123' }}

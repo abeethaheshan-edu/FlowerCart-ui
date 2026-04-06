@@ -4,11 +4,7 @@ import { API_PATH } from '../../../core/network/utils/ApiEndpoints';
 import { StorageService } from '../../../core/storage/StorageService';
 import { AuthResponseModel, UserModel } from '../models/AuthModels';
 
-/**
- * Backend sends tokens in response headers:
- *   X-Access-Token, X-Refresh-Token
- * and user data in the response body.
- */
+
 function _storeAuthFromResponse(res) {
   const headers = res.headers ?? {};
   const accessToken = headers['x-access-token'] ?? res.data?.accessToken ?? null;
